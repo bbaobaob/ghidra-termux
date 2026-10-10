@@ -12,3 +12,4 @@ ghidra_*_PUBLIC/
 
 # OS / editor
 .DS_Store
+*.deb
