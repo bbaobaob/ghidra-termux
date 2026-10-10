@@ -1,0 +1,14 @@
+# downloads / caches
+*.zip
+*.tar.gz
+*.part
+*.log
+
+# ghidra project artifacts
+*.rep
+*.gpr
+*.lock
+ghidra_*_PUBLIC/
+
+# OS / editor
+.DS_Store

@@ -1,0 +1,82 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# ghidra-termux -- Termux-optimized headless Ghidra launcher.
+#
+# Drop-in replacement for <ghidra>/support/analyzeHeadless with Android-friendly
+# defaults baked in:
+#   * JDK discovery (no interactive prompt, no TTY needed)
+#   * heap auto-sized to 1/4 of device RAM (clamped), override with
+#     GHIDRA_HEADLESS_MAXMEM
+#   * SerialGC -- lowest memory overhead on Android (Termux OpenJDK does not
+#     ship ZGC/Shenandoah for ARM)
+#   * temp/cache/settings dirs redirected to $PREFIX/tmp (Termux has no /tmp)
+#   * Ghidra thread pools capped for big.LITTLE phones (GHIDRA_TERMUX_CORES)
+#
+# Every argument is passed straight through to analyzeHeadless, e.g.
+#   ghidra-termux <projdir> <proj> -import file.so -postScript DecompileAll.java out.c
+
+set -euo pipefail
+
+PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
+INSTALL_DIR="${GHIDRA_TERMUX_HOME:-$PREFIX/opt/ghidra-termux}"
+
+ANALYZE="$INSTALL_DIR/support/analyzeHeadless"
+if [ ! -x "$ANALYZE" ]; then
+  echo "ghidra-termux: no Ghidra install at $INSTALL_DIR" >&2
+  echo "ghidra-termux: run install.sh first, or set GHIDRA_TERMUX_HOME" >&2
+  exit 1
+fi
+
+# ---------------------------------------------------------------- JDK --------
+# Termux JDKs live in $PREFIX/lib/jvm. Ghidra 12.x needs JDK 21, 11.x needs 17.
+if [ -z "${JAVA_HOME:-}" ] || [ ! -x "${JAVA_HOME:-}/bin/java" ]; then
+  for d in "$PREFIX"/lib/jvm/java-2*-openjdk; do
+    if [ -x "$d/bin/java" ]; then JAVA_HOME="$d"; break; fi
+  done
+fi
+if [ -z "${JAVA_HOME:-}" ] || [ ! -x "${JAVA_HOME:-}/bin/java" ]; then
+  echo "ghidra-termux: no JDK found; run: pkg install openjdk-21" >&2
+  exit 1
+fi
+export JAVA_HOME
+
+# --------------------------------------------------------------- heap --------
+# Default: 1/4 of physical RAM, clamped to [768M, 2048M]. The JVM's real
+# footprint is heap + metaspace + native threads + the separate native
+# `decompile` child process, so keep headroom below the Android LMK threshold.
+if [ -z "${GHIDRA_HEADLESS_MAXMEM:-}" ]; then
+  mem_kb="$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)"
+  if [ "$mem_kb" -gt 0 ] 2>/dev/null; then
+    heap_mb=$(( mem_kb / 4096 ))   # MemTotal(KiB) / 4 -> MiB
+    [ "$heap_mb" -lt 768 ] && heap_mb=768
+    [ "$heap_mb" -gt 2048 ] && heap_mb=2048
+    GHIDRA_HEADLESS_MAXMEM="${heap_mb}M"
+  else
+    GHIDRA_HEADLESS_MAXMEM=768M
+  fi
+fi
+export GHIDRA_HEADLESS_MAXMEM
+
+# ------------------------------------------------------------- tmpdirs -------
+# java.io.tmpdir defaults to /tmp on Linux, which does not exist on Android.
+TMPDIR="${TMPDIR:-$PREFIX/tmp}"
+mkdir -p "$TMPDIR" 2>/dev/null || true
+export TMPDIR
+
+# ---------------------------------------------------------- JVM tuning -------
+# SerialGC: predictable low pause memory use on phones. ZGC and Shenandoah are
+# NOT compiled into Termux's OpenJDK for ARM -- do not try them.
+JOPTS="-XX:+UseSerialGC"
+JOPTS="$JOPTS -Djava.io.tmpdir=$TMPDIR"
+JOPTS="$JOPTS -Dapplication.tempdir=$TMPDIR"
+JOPTS="$JOPTS -Dapplication.cachedir=$TMPDIR/ghidra-cache"
+JOPTS="$JOPTS -Dapplication.settingsdir=$TMPDIR/ghidra-settings"
+
+# big.LITTLE: cap Ghidra thread pools so analysis threads are not spread onto
+# efficiency cores. 4 is a good default on 8-core phones; raise it on flagships.
+CORES="${GHIDRA_TERMUX_CORES:-4}"
+JOPTS="$JOPTS -Dcpu.core.override=$CORES"
+
+# User-supplied options win (appended last).
+export GHIDRA_JAVA_OPTIONS="${GHIDRA_JAVA_OPTIONS:+$GHIDRA_JAVA_OPTIONS }$JOPTS"
+
+exec "$ANALYZE" "$@"
