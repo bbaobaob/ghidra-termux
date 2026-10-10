@@ -46,11 +46,10 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p out
-          # The container's default entrypoint is bypassed by passing the
-          # command directly; PATH is set explicitly because we do not rely on
-          # the entrypoint's environment setup.
+          # The container's default entrypoint is `env`, and bash lives at the
+          # full Termux prefix path inside the image (NOT /bin/bash).
           docker run --rm -v "$PWD:/w" -w /w termux/termux-docker:aarch64 \
-            /bin/bash -c '
+            /data/data/com.termux/files/usr/bin/bash -c '
               set -e
               export PATH=/data/data/com.termux/files/usr/bin:/data/data/com.termux/files/usr/bin/applets:$PATH
               pkg install -y make clang
