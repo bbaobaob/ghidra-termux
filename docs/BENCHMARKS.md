@@ -1,10 +1,10 @@
 # Benchmarks — ghidra-termux trên thiết bị thật
 
-> Đo trên: <!-- device --> · Android <!-- ver --> · Termux · JDK 21 (openjdk-21) · Ghidra 12.1.4 headless
+> Đo trên: **Samsung Galaxy A06 (SM-A065F)** · Android 16 · 8 nhân · 3.7 GB RAM · Termux · JDK 21.0.12 (openjdk-21) · Ghidra 12.1.4 headless
 >
 > Phương pháp: `test/bench.sh` — binary mẫu ~200 hàm (switch/loop/string), import + auto-analysis đầy đủ,
 > mỗi cấu hình chạy sau một warmup (compile SLEIGH spec cache). Thời gian = wall clock của toàn bộ
- một tiến trình `analyzeHeadless` (gồm JVM startup).
+> một tiến trình `analyzeHeadless` (gồm JVM startup).
 
 ## Kết quả
 

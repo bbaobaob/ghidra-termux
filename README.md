@@ -93,9 +93,40 @@ cd ~/ghidra-termux/test && bash run-test.sh
 
 Build 1 binary ARM64 mẫu → import + analyze + decompile headless → kiểm tra output C chứa đúng function (`factorial`, `classify`...) và đo thời gian pass 2.
 
+Đã verify trên Samsung Galaxy A06 (Android 16, 8 nhân, 3.7 GB RAM):
+
+```
+### 2/5 headless import + analyze + decompile
+real 0m58.369s   (JVM startup + import + full auto-analysis + decompile 23/23 functions)
+### 5/5 second pass: -process -noanalysis
+second pass took 34s
+ALL TESTS PASSED
+```
+
+Decompiled output đúng (constant folding, string refs, control flow):
+```c
+undefined4 main(int param_1,long param_2)
+{
+  ...
+  printf("Hello, %s!\n",pcVar2);
+  printf("factorial(10)=%lu\n",0x375f00);   // = 3628800 = 10!
+  printf("classify(7)=%d\n",900);
+  ...
+}
+```
+
 ## Hiệu năng
 
 Xem [docs/BENCHMARKS.md](docs/BENCHMARKS.md) — số đo thực tế trên thiết bị ARM64 (so sánh GC, số core, batch vs lẻ).
+
+Nét chính về tốc độ:
+
+- **Decompiler ARM64 native** — bản gốc không ship native `linux_arm_64` nên không decompile được trên Android; các cách chạy khác (x86-emulation) chậm nhiều lần. Repo này build native từ source C++ của Ghidra (CI cross-build + script build on-device).
+- **Heap auto-size = 1/4 RAM** — tránh OOM/LMK kill giữa chừng, khỏi phải chạy lại từ đầu.
+- **SerialGC** — overhead bộ nhớ thấp nhất trên Android (ZGC/Shenandoah không build cho ARM trong Termux).
+- **`cpu.core.override`** — không trải thread pool ra nhân efficiency (big.LITTLE).
+- **SLEIGH prewarm** — `.sla` cache compile sẵn lúc cài đặt.
+- **Batch import** — một JVM cho nhiều binary thay vì trả tiền startup (~30-60s) cho mỗi file.
 
 ## Giới hạn đã biết
 

@@ -34,6 +34,7 @@ GHIDRA_SHA256="ddac49f903da9d5bac833e5cc79395098b9c33cfd3279be5f31bd00387d2d4db"
 REPO="bbaobaob/ghidra-termux"
 NATIVES_TAG="natives-v${GHIDRA_VERSION}"
 NATIVES_ASSET="ghidra-natives-android-aarch64-${GHIDRA_VERSION}.tar.gz"
+NATIVES_URL="https://github.com/${REPO}/releases/download/${NATIVES_TAG}/${NATIVES_ASSET}"
 
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 
@@ -99,9 +100,16 @@ if [ "$BUILD_NATIVES" = "1" ]; then
   log "building ARM64 natives on-device (slow)"
   bash "$SCRIPT_DIR/scripts/build-natives.sh"
 else
-  log "fetching prebuilt ARM64 natives ($NATIVES_ASSET from $REPO)"
-  if command -v gh >/dev/null && gh release download "$NATIVES_TAG" --repo "$REPO" \
-       --pattern "$NATIVES_ASSET" --dir "$CACHE_DIR" --clobber 2>/dev/null; then
+  log "fetching prebuilt ARM64 natives ($NATIVES_ASSET)"
+  # Public release asset: plain curl/wget, no gh auth needed.
+  if command -v curl >/dev/null; then
+    ok=0
+    curl -fL --retry 3 -C - -o "$CACHE_DIR/$NATIVES_ASSET" "$NATIVES_URL" && ok=1
+  else
+    ok=0
+    wget -c -q -O "$CACHE_DIR/$NATIVES_ASSET" "$NATIVES_URL" && ok=1
+  fi
+  if [ "$ok" = "1" ]; then
     tar -xzf "$CACHE_DIR/$NATIVES_ASSET" -C "$INSTALL_DIR"
     log "natives installed"
   else
