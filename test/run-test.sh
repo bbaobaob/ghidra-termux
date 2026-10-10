@@ -16,7 +16,7 @@ say() { echo; echo "### $*"; }
 say "1/5 building test binary"
 if command -v gcc >/dev/null; then CC=gcc; else CC=clang; fi
 $CC -O1 -o "$WORK/test-target" "$HERE/target.c"
-file "$WORK/test-target" | sed 's/^/    /'
+if command -v file >/dev/null; then file "$WORK/test-target" | sed 's/^/    /'; fi
 
 run_ghidra() {
   if [ -x "$LAUNCHER" ]; then
