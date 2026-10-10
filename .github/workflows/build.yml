@@ -112,13 +112,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          args=(--repo "$GITHUB_REPOSITORY" \
-                --title "ARM64 natives for Ghidra 12.1.4 (Android/Termux, bionic)" \
-                --notes "linux_arm_64 builds of Ghidra's native decompiler (decompile + sleigh) for Termux/Android, built in an aarch64 Termux container (bionic, NOT glibc). Drop into Ghidra/Features/Decompiler/os/linux_arm_64/.")
           if gh release view "$NATIVES_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$NATIVES_TAG" "$ANDROID_ASSET" "$ANDROID_ASSET.sha256" --clobber "${args[@]}"
+            gh release upload "$NATIVES_TAG" "$ANDROID_ASSET" "$ANDROID_ASSET.sha256" \
+              --repo "$GITHUB_REPOSITORY" --clobber
           else
-            gh release create "$NATIVES_TAG" "$ANDROID_ASSET" "$ANDROID_ASSET.sha256" "${args[@]}"
+            gh release create "$NATIVES_TAG" "$ANDROID_ASSET" "$ANDROID_ASSET.sha256" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "ARM64 natives for Ghidra 12.1.4 (Android/Termux, bionic)" \
+              --notes "linux_arm_64 builds of Ghidra's native decompiler (decompile + sleigh) for Termux/Android, built in an aarch64 Termux container (bionic, NOT glibc). Drop into Ghidra/Features/Decompiler/os/linux_arm_64/."
           fi
 
   # Assemble the full Termux .deb (Ghidra tree + natives + launcher + docs).
@@ -173,11 +174,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          args=(--repo "$GITHUB_REPOSITORY" \
-                --title "ghidra-termux 12.1.4 — Ghidra headless for Termux (Android ARM64)" \
-                --notes "Full Ghidra 12.1.4 headless suite for Termux, incl. ARM64 native decompiler binaries (official Ghidra ships none for linux_arm_64). Install: dpkg -i $DEB_ASSET  (or: pkg install ./$DEB_ASSET). Requires openjdk-21, bash, coreutils, unzip, curl. No root. Launcher: ghidra-termux (alias: ghidra). Docs/tests: \$PREFIX/share/ghidra-termux/.")
           if gh release view "$DEB_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$DEB_TAG" "$DEB_ASSET" --clobber "${args[@]}"
+            gh release upload "$DEB_TAG" "$DEB_ASSET" --repo "$GITHUB_REPOSITORY" --clobber
           else
-            gh release create "$DEB_TAG" "$DEB_ASSET" "${args[@]}"
+            gh release create "$DEB_TAG" "$DEB_ASSET" --repo "$GITHUB_REPOSITORY" \
+              --title "ghidra-termux 12.1.4 — Ghidra headless for Termux (Android ARM64)" \
+              --notes "Full Ghidra 12.1.4 headless suite for Termux, incl. ARM64 native decompiler binaries (official Ghidra ships none for linux_arm_64). Install: dpkg -i $DEB_ASSET  (or: pkg install ./$DEB_ASSET). Requires openjdk-21, bash, coreutils, unzip, curl. No root. Launcher: ghidra-termux (alias: ghidra). Docs/tests: \$PREFIX/share/ghidra-termux/."
           fi
