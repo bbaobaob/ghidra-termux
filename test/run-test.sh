@@ -18,18 +18,19 @@ if command -v gcc >/dev/null; then CC=gcc; else CC=clang; fi
 $CC -O1 -o "$WORK/test-target" "$HERE/target.c"
 file "$WORK/test-target" | sed 's/^/    /'
 
+run_ghidra() {
+  if [ -x "$LAUNCHER" ]; then
+    "$LAUNCHER" "$@"
+  else
+    "$GHIDRA/support/analyzeHeadless" "$@"
+  fi
+}
+
 say "2/5 headless import + analyze + decompile"
 mkdir -p "$WORK/proj"
-if [ -x "$LAUNCHER" ]; then
-  time "$LAUNCHER" "$WORK/proj" test -import "$WORK/test-target" \
-    -processor AARCH64:LE:64:default \
-    -scriptPath "$HERE" -postScript DecompileAll.java "$WORK/out.c"
-else
-  # fall back to a raw analyzeHeadless (unpatched tree)
-  time "$GHIDRA/support/analyzeHeadless" "$WORK/proj" test -import "$WORK/test-target" \
-    -processor AARCH64:LE:64:default \
-    -scriptPath "$HERE" -postScript DecompileAll.java "$WORK/out.c"
-fi
+time run_ghidra "$WORK/proj" test -import "$WORK/test-target" \
+  -processor AARCH64:LE:64:default \
+  -scriptPath "$HERE" -postScript DecompileAll.java "$WORK/out.c"
 
 say "3/5 checking decompiler output"
 [ -s "$WORK/out.c" ] || { echo "FAIL: $WORK/out.c empty"; exit 1; }
@@ -43,9 +44,8 @@ say "4/5 sample output (main)"
 awk '/^\/\/ ==== main /,/^\/\/ ==== [^m]/' "$WORK/out.c" | head -30 | sed 's/^/    /'
 
 say "5/5 second pass: -process -noanalysis (re-run speed)"
-mkdir -p "$WORK/proj"
 start=$(date +%s)
-"$LAUNCHER" "$WORK/proj" test -process test-target -noanalysis \
+run_ghidra "$WORK/proj" test -process test-target -noanalysis \
   -scriptPath "$HERE" -postScript DecompileAll.java "$WORK/out2.c" >/dev/null 2>&1
 echo "    second pass took $(( $(date +%s) - start ))s"
 

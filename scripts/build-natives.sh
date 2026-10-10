@@ -38,6 +38,10 @@ cd "$CPP"
 # neither the gradle build nor Ghidra itself needs them at runtime.
 # Generated parser sources (slghparse.cc/slghscan.cc) ship with the release,
 # so no flex/bison needed. sleigh links against zlib (-lz).
+#
+# The object-dir rules do not mkdir their output dirs (only the install_* goals
+# do that via DEPNAMES), so create them up front.
+mkdir -p ghi_opt sla_opt
 make -j"$JOBS" ghidra_opt sleigh_opt ARCH_TYPE= EXTRA=
 
 mkdir -p "$DEST"

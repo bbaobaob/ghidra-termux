@@ -69,12 +69,14 @@ jobs:
       # Makefile fallback: the decompiler cpp tree ships with generated parser
       # sources, so a plain make works without flex/bison. ARCH_TYPE= strips the
       # bogus -m32 the Makefile assigns for non-x86_64 Linux; EXTRA= drops the
-      # binutils/BFD-dependent files (need bfd.h from binutils-dev, unused at runtime).
+      # binutils/BFD-dependent files (need bfd.h from binutils-dev, unused at
+      # runtime); mkdir works around the object rules not creating their dirs.
       - name: Makefile fallback build
         if: steps.chk.outputs.ok == '0'
         run: |
           set -euo pipefail
           cd Ghidra/Features/Decompiler/src/decompile/cpp
+          mkdir -p ghi_opt sla_opt
           make -j"$(nproc)" ghidra_opt sleigh_opt ARCH_TYPE= EXTRA=
           mkdir -p "$GITHUB_WORKSPACE/out/Ghidra/Features/Decompiler/os/linux_arm_64"
           cp ghidra_opt sleigh_opt "$GITHUB_WORKSPACE/out/Ghidra/Features/Decompiler/os/linux_arm_64/"
