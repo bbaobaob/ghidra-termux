@@ -25,6 +25,20 @@ Bản Ghidra chính thức chỉ ship binary native cho `linux_x86_64`/`win_x86_
 
 ## Cài đặt
 
+### Cách 1: gói .deb (khuyến nghị — 1 lệnh, không cần build gì)
+
+Tải `ghidra-termux_12.1.4_aarch64.deb` (~494 MB) từ [Releases](../../releases), rồi:
+
+```bash
+dpkg -i ghidra-termux_12.1.4_aarch64.deb
+# hoặc để pkg/apt tự cài dependency:
+pkg install ./ghidra-termux_12.1.4_aarch64.deb
+```
+
+Gói đã bao gồm: Ghidra 12.1.4 đầy đủ + native ARM64 + launcher `ghidra-termux` + test/docs ở `$PREFIX/share/ghidra-termux/`. Gỡ bỏ: `dpkg -r ghidra-termux`.
+
+### Cách 2: install.sh (tải + patch tại chỗ)
+
 ```bash
 curl -fsSL -o install.sh \
   https://raw.githubusercontent.com/bbaobaob/ghidra-termux/main/install.sh
@@ -76,7 +90,8 @@ Toàn bộ cờ của `analyzeHeadless` gốc đều dùng được — `ghidra-
 | `GHIDRA_TERMUX_HOME` | `$PREFIX/opt/ghidra-termux` | Đường dẫn cài Ghidra |
 | `GHIDRA_HEADLESS_MAXMEM` | RAM/4 (768M–2G) | Heap JVM |
 | `GHIDRA_TERMUX_CORES` | `4` | Số core Ghidra dùng cho thread pool |
-| `GHIDRA_JAVA_OPTIONS` | — | Cờ JVM thêm (ghidra-termux tự thêm SerialGC, tmpdir...) |
+| `GHIDRA_TERMUX_GC` | `-XX:+UseSerialGC` | Cờ GC; đặt rỗng để dùng GC mặc định của JVM |
+| `GHIDRA_JAVA_OPTIONS` | — | Cờ JVM thêm (nếu đã chọn `-XX:+Use*GC` thì wrapper tự bỏ SerialGC) |
 | `JAVA_HOME` | tự tìm `java-2x-openjdk` | JDK 21 |
 
 Ví dụ máy 8 GB RAM, muốn heap lớn hơn và dùng hết nhân:
@@ -117,7 +132,16 @@ undefined4 main(int param_1,long param_2)
 
 ## Hiệu năng
 
-Xem [docs/BENCHMARKS.md](docs/BENCHMARKS.md) — số đo thực tế trên thiết bị ARM64 (so sánh GC, số core, batch vs lẻ).
+Xem [docs/BENCHMARKS.md](docs/BENCHMARKS.md) — số đo đầy đủ trên Samsung Galaxy A06 (Android 16, 8 nhân, 3.7 GB RAM):
+
+| Cấu hình | Thời gian (binary 200 hàm) |
+|---|---|
+| Default (SerialGC, cores=4) | 37.6 s |
+| G1GC | 44.4 s |
+| cores=2 | 39.7 s |
+| **cores=8** | **1257 s** (7–30× chậm hơn — đừng trải thread pool ra nhân little!) |
+| Batch 5 binary / 1 JVM | 102.7 s (~20.5 s/binary) |
+| 5 lần chạy riêng lẻ | 286.4 s (~57 s/binary) |
 
 Nét chính về tốc độ:
 

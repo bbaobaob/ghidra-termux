@@ -6,8 +6,9 @@
 #   * JDK discovery (no interactive prompt, no TTY needed)
 #   * heap auto-sized to 1/4 of device RAM (clamped), override with
 #     GHIDRA_HEADLESS_MAXMEM
-#   * SerialGC -- lowest memory overhead on Android (Termux OpenJDK does not
-#     ship ZGC/Shenandoah for ARM)
+#   * SerialGC by default -- lowest memory overhead on Android (Termux OpenJDK
+#     does not ship ZGC/Shenandoah for ARM); override with GHIDRA_TERMUX_GC or
+#     a -XX:+Use*GC flag in GHIDRA_JAVA_OPTIONS
 #   * temp/cache/settings dirs redirected to $PREFIX/tmp (Termux has no /tmp)
 #   * Ghidra thread pools capped for big.LITTLE phones (GHIDRA_TERMUX_CORES)
 #
@@ -63,9 +64,19 @@ mkdir -p "$TMPDIR" 2>/dev/null || true
 export TMPDIR
 
 # ---------------------------------------------------------- JVM tuning -------
-# SerialGC: predictable low pause memory use on phones. ZGC and Shenandoah are
-# NOT compiled into Termux's OpenJDK for ARM -- do not try them.
-JOPTS="-XX:+UseSerialGC"
+# GC: SerialGC by default -- lowest memory overhead on Android. (ZGC and
+# Shenandoah are NOT compiled into Termux's OpenJDK for ARM -- do not try them.)
+# The JVM rejects having two -XX:+Use*GC flags at once, so if the user already
+# picked a GC via GHIDRA_JAVA_OPTIONS (or set GHIDRA_TERMUX_GC), respect that.
+GC_FLAG="${GHIDRA_TERMUX_GC--XX:+UseSerialGC}"
+if printf ' %s ' "${GHIDRA_JAVA_OPTIONS:-}" | grep -q -- '-XX:+Use[^ ]*GC'; then
+  GC_FLAG=""
+fi
+if [ -n "$GC_FLAG" ] && [ "$GC_FLAG" != "none" ]; then
+  JOPTS="$GC_FLAG"
+else
+  JOPTS=""
+fi
 JOPTS="$JOPTS -Djava.io.tmpdir=$TMPDIR"
 JOPTS="$JOPTS -Dapplication.tempdir=$TMPDIR"
 JOPTS="$JOPTS -Dapplication.cachedir=$TMPDIR/ghidra-cache"
