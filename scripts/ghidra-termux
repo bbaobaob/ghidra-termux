@@ -76,7 +76,8 @@ JOPTS="$JOPTS -Dapplication.settingsdir=$TMPDIR/ghidra-settings"
 CORES="${GHIDRA_TERMUX_CORES:-4}"
 JOPTS="$JOPTS -Dcpu.core.override=$CORES"
 
-# User-supplied options win (appended last).
-export GHIDRA_JAVA_OPTIONS="${GHIDRA_JAVA_OPTIONS:+$GHIDRA_JAVA_OPTIONS }$JOPTS"
+# User-supplied options go LAST so they can override any default above
+# (e.g. GHIDRA_JAVA_OPTIONS="-XX:+UseG1GC" to switch GC).
+export GHIDRA_JAVA_OPTIONS="$JOPTS${GHIDRA_JAVA_OPTIONS:+ $GHIDRA_JAVA_OPTIONS}"
 
 exec "$ANALYZE" "$@"

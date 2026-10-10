@@ -8,6 +8,11 @@
 #   4. batch import (N binaries, 1 JVM) vs N separate invocations
 #
 # Usage: bash bench.sh [binary]     (builds a synthetic target if none given)
+#
+# NOTE: phones thermally throttle. Run on a cool device and keep a cooldown
+# between measurements (COOLDOWN=<sec>, default 60) -- without it, later
+# measurements are confounded by throttling and can look 5x slower than the
+# identical earlier configuration.
 set -euo pipefail
 
 PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
@@ -76,16 +81,23 @@ PROJ="$WORK/warm"; mkdir -p "$PROJ"
 "$LAUNCHER" "$PROJ" warm -import "$TARGET" -processor AARCH64:LE:64:v8A \
   -analysisTimeoutPerFile 600 >/dev/null 2>&1 || echo "    warmup failed"
 
-say "1/4 thread-pool cap: cores 4 vs 8"
-run_timed "GHIDRA_TERMUX_CORES=4" GHIDRA_TERMUX_CORES=4 -- "$TARGET"
+say "1/4 thread-pool cap: cores 2 vs 4 vs 8"
+run_timed "GHIDRA_TERMUX_CORES=2" GHIDRA_TERMUX_CORES=2 -- "$TARGET"
+[ "${COOLDOWN:-60}" -gt 0 ] && sleep "${COOLDOWN:-60}"
+run_timed "GHIDRA_TERMUX_CORES=4 (default)" GHIDRA_TERMUX_CORES=4 -- "$TARGET"
+[ "${COOLDOWN:-60}" -gt 0 ] && sleep "${COOLDOWN:-60}"
 run_timed "GHIDRA_TERMUX_CORES=8" GHIDRA_TERMUX_CORES=8 -- "$TARGET"
+[ "${COOLDOWN:-60}" -gt 0 ] && sleep "${COOLDOWN:-60}"
 
 say "2/4 GC: SerialGC (default) vs G1GC"
 run_timed "SerialGC (wrapper default)" -- "$TARGET"
+[ "${COOLDOWN:-60}" -gt 0 ] && sleep "${COOLDOWN:-60}"
 run_timed "G1GC" GHIDRA_JAVA_OPTIONS="-XX:+UseG1GC" -- "$TARGET"
+[ "${COOLDOWN:-60}" -gt 0 ] && sleep "${COOLDOWN:-60}"
 
 say "3/4 batch vs separate invocations"
 run_timed "batch: 5 binaries in 1 JVM" -- "$BINDIR" -recursive
+[ "${COOLDOWN:-60}" -gt 0 ] && sleep "${COOLDOWN:-60}"
 for i in 1 2 3 4 5; do
   run_timed "separate run $i/5" -- "$BINDIR/t$i"
 done
