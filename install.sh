@@ -33,7 +33,7 @@ GHIDRA_SHA256="ddac49f903da9d5bac833e5cc79395098b9c33cfd3279be5f31bd00387d2d4db"
 
 REPO="bbaobaob/ghidra-termux"
 NATIVES_TAG="natives-v${GHIDRA_VERSION}"
-NATIVES_ASSET="ghidra-natives-linux-arm64-${GHIDRA_VERSION}.tar.gz"
+NATIVES_ASSET="ghidra-natives-android-aarch64-${GHIDRA_VERSION}.tar.gz"
 
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 

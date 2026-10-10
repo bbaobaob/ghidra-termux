@@ -1,10 +1,18 @@
 # Build Ghidra's native components (decompiler `decompile` + `sleigh`) for
-# linux_arm_64 on a GitHub-hosted ARM64 runner, and publish them as a release
-# asset. Official Ghidra releases only ship linux_x86_64/win_x86_64 natives, so
-# this workflow is what makes the ARM64 port possible.
+# Android ARM64 (Termux) and publish them as a release asset.
 #
-# Primary path : gradle buildNatives_linux_arm_64 (upstream build system)
-# Fallback path: the upstream Makefile with ARCH_TYPE= (see scripts/build-natives.sh)
+# Official Ghidra releases only ship linux_x86_64/win_x86_64 natives, so ARM64
+# users must supply their own.
+#
+# IMPORTANT: the build MUST happen inside an aarch64 Termux container so the
+# binaries link against Android *bionic*. A plain glibc cross-build (e.g. the
+# upstream `gradle buildNatives_linux_arm_64`) produces ELF binaries that need
+# /lib/ld-linux-aarch64.so.1 and CANNOT run on Android ("cannot execute:
+# required file not found"). This was learned the hard way -- don't "simplify"
+# this back to a gradle/make cross-build on the Ubuntu runner.
+#
+# Primary path : docker termux/termux-docker:aarch64 + make (identical to
+#                scripts/build-natives.sh on a real device)
 name: build-natives
 
 on:
@@ -13,10 +21,13 @@ on:
     branches: [main]
     paths: ['.github/workflows/build-natives.yml']
 
+permissions:
+  contents: write
+
 env:
   GHIDRA_REF: Ghidra_12.1.4_build
   NATIVES_TAG: natives-v12.1.4
-  NATIVES_ASSET: ghidra-natives-linux-arm64-12.1.4.tar.gz
+  ANDROID_ASSET: ghidra-natives-android-aarch64-12.1.4.tar.gz
 
 jobs:
   build:
@@ -29,91 +40,58 @@ jobs:
           ref: ${{ env.GHIDRA_REF }}
           fetch-depth: 1
 
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Fetch dependencies
-        run: ./gradlew -I gradle/support/fetchDependencies.gradle help
-
-      # buildNatives_linux_arm_64 builds every native component that declares
-      # linux_arm_64. Some components (7-Zip-JBinding, Z3) may not support ARM64
-      # and fail the task -- that is fine, we only require decompile + sleigh,
-      # which is why this step is allowed to fail.
-      - name: Gradle buildNatives_linux_arm_64
-        continue-on-error: true
-        run: ./gradlew buildNatives_linux_arm_64
-
-      - name: Collect decompiler natives
+      # Same build as scripts/build-natives.sh, but inside an aarch64 Termux
+      # container so the output links against bionic, like a real device.
+      - name: Build natives in Termux container
         run: |
           set -euo pipefail
-          mkdir -p out/Ghidra/Features/Decompiler/os/linux_arm_64
-          for name in decompile sleigh; do
-            src="$(find Ghidra -type f -path '*linux_arm_64*' -name "$name" | head -n1 || true)"
-            if [ -n "$src" ]; then
-              cp "$src" out/Ghidra/Features/Decompiler/os/linux_arm_64/
-              echo "collected $src"
-            fi
-          done
+          mkdir -p out
+          # The container's default entrypoint is bypassed by passing the
+          # command directly; PATH is set explicitly because we do not rely on
+          # the entrypoint's environment setup.
+          docker run --rm -v "$PWD:/w" -w /w termux/termux-docker:aarch64 \
+            /bin/bash -c '
+              set -e
+              export PATH=/data/data/com.termux/files/usr/bin:/data/data/com.termux/files/usr/bin/applets:$PATH
+              pkg install -y make clang
+              cd /w/Ghidra/Features/Decompiler/src/decompile/cpp
+              mkdir -p ghi_opt sla_opt
+              make -j"$(nproc)" ghidra_opt sleigh_opt ARCH_TYPE= EXTRA=
+              mkdir -p /w/out/Ghidra/Features/Decompiler/os/linux_arm_64
+              cp ghidra_opt sleigh_opt /w/out/Ghidra/Features/Decompiler/os/linux_arm_64/
+            '
 
-      - name: Check what we got
-        id: chk
-        run: |
-          ok=0
-          [ -f out/Ghidra/Features/Decompiler/os/linux_arm_64/decompile ] && \
-          [ -f out/Ghidra/Features/Decompiler/os/linux_arm_64/sleigh ] && ok=1
-          echo "ok=$ok" >> "$GITHUB_OUTPUT"
-
-      # Makefile fallback: the decompiler cpp tree ships with generated parser
-      # sources, so a plain make works without flex/bison. ARCH_TYPE= strips the
-      # bogus -m32 the Makefile assigns for non-x86_64 Linux; EXTRA= drops the
-      # binutils/BFD-dependent files (need bfd.h from binutils-dev, unused at
-      # runtime); mkdir works around the object rules not creating their dirs.
-      - name: Makefile fallback build
-        if: steps.chk.outputs.ok == '0'
-        run: |
-          set -euo pipefail
-          cd Ghidra/Features/Decompiler/src/decompile/cpp
-          mkdir -p ghi_opt sla_opt
-          make -j"$(nproc)" ghidra_opt sleigh_opt ARCH_TYPE= EXTRA=
-          mkdir -p "$GITHUB_WORKSPACE/out/Ghidra/Features/Decompiler/os/linux_arm_64"
-          cp ghidra_opt sleigh_opt "$GITHUB_WORKSPACE/out/Ghidra/Features/Decompiler/os/linux_arm_64/"
-
-      - name: Verify binaries are aarch64
+      - name: Verify binaries
         run: |
           set -euo pipefail
           d=out/Ghidra/Features/Decompiler/os/linux_arm_64
           test -f "$d/decompile" && test -f "$d/sleigh"
           file "$d/decompile" "$d/sleigh"
           file "$d/decompile" | grep -qi 'ARM aarch64'
-          "$d/sleigh" 2>&1 | head -c 200 || true   # prints usage, proves it runs
 
       - name: Package
         run: |
           set -euo pipefail
-          cd out
-          tar -czf "$GITHUB_WORKSPACE/$NATIVES_ASSET" .
-          cd "$GITHUB_WORKSPACE"
-          sha256sum "$NATIVES_ASSET" | tee "$NATIVES_ASSET.sha256"
+          (cd out && tar -czf "$GITHUB_WORKSPACE/$ANDROID_ASSET" .)
+          sha256sum "$ANDROID_ASSET" | tee "$ANDROID_ASSET.sha256"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ghidra-natives-linux-arm64
+          name: ghidra-natives-android-aarch64
           path: |
-            ${{ env.NATIVES_ASSET }}
-            ${{ env.NATIVES_ASSET }}.sha256
+            ${{ env.ANDROID_ASSET }}
+            ${{ env.ANDROID_ASSET }}.sha256
 
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          args=(--repo "$GITHUB_REPOSITORY" --title "ARM64 natives for Ghidra 12.1.4" \
-                --notes "linux_arm_64 builds of Ghidra's native decompiler (decompile + sleigh), cross-compiled on ubuntu-24.04-arm. Drop into Ghidra/Features/Decompiler/os/linux_arm_64/.")
+          args=(--repo "$GITHUB_REPOSITORY" \
+                --title "ARM64 natives for Ghidra 12.1.4 (Android/Termux, bionic)" \
+                --notes "linux_arm_64 builds of Ghidra's native decompiler (decompile + sleigh) for Termux/Android, built in an aarch64 Termux container (bionic, NOT glibc). Drop into Ghidra/Features/Decompiler/os/linux_arm_64/.")
           if gh release view "$NATIVES_TAG" >/dev/null 2>&1; then
-            gh release upload "$NATIVES_TAG" "$NATIVES_ASSET" "$NATIVES_ASSET.sha256" --clobber "${args[@]}"
+            gh release upload "$NATIVES_TAG" "$ANDROID_ASSET" "$ANDROID_ASSET.sha256" --clobber "${args[@]}"
           else
-            gh release create "$NATIVES_TAG" "$NATIVES_ASSET" "$NATIVES_ASSET.sha256" "${args[@]}"
+            gh release create "$NATIVES_TAG" "$ANDROID_ASSET" "$ANDROID_ASSET.sha256" "${args[@]}"
           fi
