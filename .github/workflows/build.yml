@@ -13,21 +13,27 @@
 #
 # Primary path : docker termux/termux-docker:aarch64 + make (identical to
 #                scripts/build-natives.sh on a real device)
-name: build-natives
+name: build
 
 on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['.github/workflows/build-natives.yml']
+    paths: ['.github/workflows/build.yml']
 
 permissions:
   contents: write
 
 env:
   GHIDRA_REF: Ghidra_12.1.4_build
+  GHIDRA_VERSION: "12.1.4"
+  GHIDRA_ZIP: ghidra_12.1.4_PUBLIC_20260921.zip
+  GHIDRA_URL: https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_12.1.4_build/ghidra_12.1.4_PUBLIC_20260921.zip
+  GHIDRA_SHA256: ddac49f903da9d5bac833e5cc79395098b9c33cfd3279be5f31bd00387d2d4db
   NATIVES_TAG: natives-v12.1.4
   ANDROID_ASSET: ghidra-natives-android-aarch64-12.1.4.tar.gz
+  DEB_ASSET: ghidra-termux_12.1.4_aarch64.deb
+  DEB_TAG: v12.1.4
 
 jobs:
   build:
@@ -113,4 +119,65 @@ jobs:
             gh release upload "$NATIVES_TAG" "$ANDROID_ASSET" "$ANDROID_ASSET.sha256" --clobber "${args[@]}"
           else
             gh release create "$NATIVES_TAG" "$ANDROID_ASSET" "$ANDROID_ASSET.sha256" "${args[@]}"
+          fi
+
+  # Assemble the full Termux .deb (Ghidra tree + natives + launcher + docs).
+  # Runs after the natives job so the release asset already exists.
+  deb:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout this repo (scripts)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
+          path: ourrepo
+
+      - name: Download official Ghidra release zip
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -C - -o "$GHIDRA_ZIP" "$GHIDRA_URL"
+          echo "$GHIDRA_SHA256  $GHIDRA_ZIP" | sha256sum -c -
+          unzip -q "$GHIDRA_ZIP"
+          ls -d ghidra_${GHIDRA_VERSION}_PUBLIC
+
+      - name: Add ARM64 natives from the natives release
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -C - -o natives.tar.gz \
+            "https://github.com/$GITHUB_REPOSITORY/releases/download/$NATIVES_TAG/$ANDROID_ASSET"
+          tar -xzf natives.tar.gz -C "ghidra_${GHIDRA_VERSION}_PUBLIC"
+          ls -la "ghidra_${GHIDRA_VERSION}_PUBLIC/Ghidra/Features/Decompiler/os/linux_arm_64/"
+
+      - name: Patch for Termux and build .deb
+        run: |
+          set -euo pipefail
+          bash ourrepo/scripts/patch-termux.sh "$PWD/ghidra_${GHIDRA_VERSION}_PUBLIC"
+          bash ourrepo/scripts/build-deb.sh \
+            "$PWD/ghidra_${GHIDRA_VERSION}_PUBLIC" "$DEB_ASSET"
+
+      - name: Verify .deb
+        run: |
+          set -euo pipefail
+          dpkg-deb -I "$DEB_ASSET" | head -12
+          dpkg-deb -c "$DEB_ASSET" | grep -E 'usr/bin/ghidra-termux$|linux_arm_64/(decompile|sleigh)$'
+          dpkg-deb -c "$DEB_ASSET" | wc -l
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ghidra-termux-deb
+          path: ${{ env.DEB_ASSET }}
+
+      - name: Publish .deb release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          args=(--repo "$GITHUB_REPOSITORY" \
+                --title "ghidra-termux 12.1.4 — Ghidra headless for Termux (Android ARM64)" \
+                --notes "Full Ghidra 12.1.4 headless suite for Termux, incl. ARM64 native decompiler binaries (official Ghidra ships none for linux_arm_64). Install: dpkg -i $DEB_ASSET  (or: pkg install ./$DEB_ASSET). Requires openjdk-21, bash, coreutils, unzip, curl. No root. Launcher: ghidra-termux (alias: ghidra). Docs/tests: \$PREFIX/share/ghidra-termux/.")
+          if gh release view "$DEB_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$DEB_TAG" "$DEB_ASSET" --clobber "${args[@]}"
+          else
+            gh release create "$DEB_TAG" "$DEB_ASSET" "${args[@]}"
           fi

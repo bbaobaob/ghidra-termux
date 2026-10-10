@@ -139,7 +139,7 @@ Xem [docs/BENCHMARKS.md](docs/BENCHMARKS.md) — số đo đầy đủ trên Sam
 | Default (SerialGC, cores=4) | 37.6 s |
 | G1GC | 44.4 s |
 | cores=2 | 39.7 s |
-| **cores=8** | **1257 s** (7–30× chậm hơn — đừng trải thread pool ra nhân little!) |
+| cores=8 | 131 s (3.5× chậm hơn — đừng trải thread pool ra nhân little!) |
 | Batch 5 binary / 1 JVM | 102.7 s (~20.5 s/binary) |
 | 5 lần chạy riêng lẻ | 286.4 s (~57 s/binary) |
 

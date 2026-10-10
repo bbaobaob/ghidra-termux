@@ -11,13 +11,13 @@
 | **Default** (SerialGC, cores=4) | **37.6 s** | 66.5 s | 23/23 | cấu hình wrapper mặc định |
 | G1GC | 44.4 s | 69.0 s | 23/23 | chậm hơn SerialGC ~18% wall |
 | cores=2 | 39.7 s | 71.3 s | 23/23 | ≈ cores=4 (SoC chỉ có 2 nhân big) |
-| cores=8 | **1257 s** | — | — | đo ở session ấm (cùng session với cores=4=170s → tỷ lệ 7.4×); budget phone với 6 nhân A55 kéo cả thread pool |
+| cores=8 | 131 s | — | 23/23 | **3.5× chậm hơn cores=4** — 6 nhân A55 kéo các phase song song |
 | **Batch 5 binary / 1 JVM** | **102.7 s** | 133.3 s | 23/binary | ~20.5 s/binary |
 | 5 lần chạy riêng lẻ | 286.4 s (tổng) | — | 23 mỗi lần | ~57 s/binary |
 
 ## Nhận định
 
-1. **cores=4 (mặc định) là quyết định đúng.** Trên SoC 2-big/6-little, để Ghidra trải thread pool ra 8 nhân làm thời gian phân tích tăng **7–30×** (các phase song song bị gate bởi nhân chậm nhất). cores=2 ≈ cores=4; cả hai đều xa nhanh hơn cores=8.
+1. **cores=4 (mặc định) là quyết định đúng.** Trên SoC 2-big/6-little, để Ghidra trải thread pool ra 8 nhân làm thời gian phân tích tăng **3.5×** (131 s vs 37.6 s — các phase song song bị gate bởi nhân chậm nhất). cores=2 ≈ cores=4.
 2. **Batch import nhanh 2.8×** so với gọi `analyzeHeadless` cho từng file — một lần trả chi phí JVM startup (~30 s cho 200 jar + init).
 3. **SerialGC thắng G1GC** cả wall lẫn CPU trên thiết bị 3.7 GB, và overhead bộ nhớ thấp hơn (quan trọng với Android LMK). ZGC/Shenandoah không build cho ARM trong Termux nên không phải lựa chọn.
 4. Lần chạy đầu tiên sau cài đặt (cold page cache) ~58 s; các lần sau ~32–38 s.
