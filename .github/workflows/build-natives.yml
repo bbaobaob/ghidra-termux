@@ -109,7 +109,7 @@ jobs:
           args=(--repo "$GITHUB_REPOSITORY" \
                 --title "ARM64 natives for Ghidra 12.1.4 (Android/Termux, bionic)" \
                 --notes "linux_arm_64 builds of Ghidra's native decompiler (decompile + sleigh) for Termux/Android, built in an aarch64 Termux container (bionic, NOT glibc). Drop into Ghidra/Features/Decompiler/os/linux_arm_64/.")
-          if gh release view "$NATIVES_TAG" >/dev/null 2>&1; then
+          if gh release view "$NATIVES_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$NATIVES_TAG" "$ANDROID_ASSET" "$ANDROID_ASSET.sha256" --clobber "${args[@]}"
           else
             gh release create "$NATIVES_TAG" "$ANDROID_ASSET" "$ANDROID_ASSET.sha256" "${args[@]}"
