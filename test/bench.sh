@@ -64,7 +64,7 @@ run_timed() {  # run_timed <label> <extra-env-assignments...> -- <args...>
   local start end ms
   start=$(date +%s%N)
   env "${envs[@]}" "$LAUNCHER" "$proj" bench -import "$@" \
-    -processor AARCH64:LE:64:default -analysisTimeoutPerFile 600 \
+    -processor AARCH64:LE:64:v8A -analysisTimeoutPerFile 600 \
     >"$WORK/last.log" 2>&1 || { echo "    FAILED (see $WORK/last.log)"; tail -5 "$WORK/last.log"; return 1; }
   end=$(date +%s%N)
   ms=$(( (end - start) / 1000000 ))
@@ -73,7 +73,7 @@ run_timed() {  # run_timed <label> <extra-env-assignments...> -- <args...>
 
 say "0/4 warmup (compiles SLEIGH specs, results discarded)"
 PROJ="$WORK/warm"; mkdir -p "$PROJ"
-"$LAUNCHER" "$PROJ" warm -import "$TARGET" -processor AARCH64:LE:64:default \
+"$LAUNCHER" "$PROJ" warm -import "$TARGET" -processor AARCH64:LE:64:v8A \
   -analysisTimeoutPerFile 600 >/dev/null 2>&1 || echo "    warmup failed"
 
 say "1/4 thread-pool cap: cores 4 vs 8"

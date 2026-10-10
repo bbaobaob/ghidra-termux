@@ -42,10 +42,13 @@ jobs:
 
       # Same build as scripts/build-natives.sh, but inside an aarch64 Termux
       # container so the output links against bionic, like a real device.
+      # The container's default user is not root and cannot write into the
+      # bind-mounted workspace, so open it up first.
       - name: Build natives in Termux container
         run: |
           set -euo pipefail
           mkdir -p out
+          chmod -R a+rwX "$GITHUB_WORKSPACE"
           # The container's default entrypoint is `env`, and bash lives at the
           # full Termux prefix path inside the image (NOT /bin/bash).
           docker run --rm -v "$PWD:/w" -w /w termux/termux-docker:aarch64 \
@@ -55,7 +58,12 @@ jobs:
               pkg install -y make clang
               cd /w/Ghidra/Features/Decompiler/src/decompile/cpp
               mkdir -p ghi_opt sla_opt
-              make -j"$(nproc)" ghidra_opt sleigh_opt ARCH_TYPE= EXTRA=
+              make -j"$(nproc)" ghidra_opt sleigh_opt ARCH_TYPE= EXTRA= || true
+              if [ ! -f ghidra_opt ] || [ ! -f sleigh_opt ]; then
+                # libc++ header/lib skew: force-link the static libc++ from ndk-multilib
+                make ghidra_opt sleigh_opt ARCH_TYPE= EXTRA= \
+                  MAKE_STATIC="-Wl,--whole-archive /data/data/com.termux/files/usr/aarch64-linux-android/lib/libc++_static.a -Wl,--no-whole-archive"
+              fi
               mkdir -p /w/out/Ghidra/Features/Decompiler/os/linux_arm_64
               cp ghidra_opt sleigh_opt /w/out/Ghidra/Features/Decompiler/os/linux_arm_64/
             '

@@ -42,7 +42,22 @@ cd "$CPP"
 # The object-dir rules do not mkdir their output dirs (only the install_* goals
 # do that via DEPNAMES), so create them up front.
 mkdir -p ghi_opt sla_opt
-make -j"$JOBS" ghidra_opt sleigh_opt ARCH_TYPE= EXTRA=
+make -j"$JOBS" ghidra_opt sleigh_opt ARCH_TYPE= EXTRA= || true
+
+# Link can fail on devices where the clang package is newer than the installed
+# libc++ package: headers reference std::__ndk1::__hash_memory but
+# $PREFIX/lib/libc++_shared.so does not export it. ndk-multilib ships a static
+# libc++_static.a that matches the headers -- force-link it.
+if [ ! -f ghidra_opt ] || [ ! -f sleigh_opt ]; then
+  echo "build-natives: plain link failed; retrying with bundled static libc++"
+  echo "build-natives: (pkg install ndk-multilib if the next step fails)"
+  STATIC_LIBCXX="$PREFIX/aarch64-linux-android/lib/libc++_static.a"
+  [ -f "$STATIC_LIBCXX" ] || { echo "build-natives: $STATIC_LIBCXX not found" >&2; exit 1; }
+  make ghidra_opt sleigh_opt ARCH_TYPE= EXTRA= \
+    MAKE_STATIC="-Wl,--whole-archive $STATIC_LIBCXX -Wl,--no-whole-archive" || true
+fi
+
+[ -f ghidra_opt ] && [ -f sleigh_opt ] || { echo "build-natives: build failed" >&2; exit 1; }
 
 mkdir -p "$DEST"
 install -m 755 ghidra_opt "$DEST/decompile"

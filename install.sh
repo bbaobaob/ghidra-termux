@@ -134,7 +134,7 @@ if [ "$PREWARM" = "1" ]; then
       PDIR="$HOME/.ghidra-termux-prewarm"
       mkdir -p "$PDIR"
       GHIDRA_TERMUX_CORES=2 timeout 600 "$BIN_DIR/ghidra-termux" "$PDIR" warm \
-        -import "$BIN" -processor AARCH64:LE:64:default -analysisTimeoutPerFile 120 \
+        -import "$BIN" -processor AARCH64:LE:64:v8A -analysisTimeoutPerFile 120 \
         >/dev/null 2>&1 || echo "install: prewarm skipped (non-fatal)"
       rm -rf "$PDIR"
     fi

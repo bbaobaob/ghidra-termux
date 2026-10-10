@@ -51,7 +51,7 @@ ghidra-termux ~/proj myproj -import ./libfoo.so \
 
 # chỉ định processor (bỏ qua auto-detect)
 ghidra-termux ~/proj myproj -import ./firmware.bin \
-  -processor AARCH64:LE:64:default -loader BinaryLoader
+  -processor AARCH64:LE:64:v8A -loader BinaryLoader
 
 # batch: import cả thư mục, đệ quy, trong MỘT tiến trình (nhanh hơn gọi lẻ)
 ghidra-termux ~/proj myproj -import ./samples -recursive \

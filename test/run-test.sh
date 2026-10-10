@@ -29,7 +29,7 @@ run_ghidra() {
 say "2/5 headless import + analyze + decompile"
 mkdir -p "$WORK/proj"
 time run_ghidra "$WORK/proj" test -import "$WORK/test-target" \
-  -processor AARCH64:LE:64:default \
+  -processor AARCH64:LE:64:v8A \
   -scriptPath "$HERE" -postScript DecompileAll.java "$WORK/out.c"
 
 say "3/5 checking decompiler output"
