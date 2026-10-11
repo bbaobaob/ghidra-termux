@@ -1,5 +1,5 @@
 # Build Ghidra's native components (decompiler `decompile` + `sleigh`) for
-# Android ARM64 (Termux) and publish them as a release asset.
+# Android ARM64 (Termux) and publish them, then assemble the full Termux .deb.
 #
 # Official Ghidra releases only ship linux_x86_64/win_x86_64 natives, so ARM64
 # users must supply their own.
@@ -11,8 +11,10 @@
 # required file not found"). This was learned the hard way -- don't "simplify"
 # this back to a gradle/make cross-build on the Ubuntu runner.
 #
-# Primary path : docker termux/termux-docker:aarch64 + make (identical to
-#                scripts/build-natives.sh on a real device)
+# The build uses the OFFICIAL RELEASE ZIP (not a source checkout): the zip ships
+# the bison/flex-generated parser sources (xml.cc, slghparse.cc, slghscan.cc,
+# pcodeparse.cc) that a source checkout lacks.
+
 name: build
 
 on:
@@ -25,7 +27,6 @@ permissions:
   contents: write
 
 env:
-  GHIDRA_REF: Ghidra_12.1.4_build
   GHIDRA_VERSION: "12.1.4"
   GHIDRA_ZIP: ghidra_12.1.4_PUBLIC_20260921.zip
   GHIDRA_URL: https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_12.1.4_build/ghidra_12.1.4_PUBLIC_20260921.zip
@@ -39,12 +40,13 @@ jobs:
   build:
     runs-on: ubuntu-24.04-arm
     steps:
-      - name: Checkout Ghidra source
-        uses: actions/checkout@v4
-        with:
-          repository: NationalSecurityAgency/ghidra
-          ref: ${{ env.GHIDRA_REF }}
-          fetch-depth: 1
+      - name: Download official Ghidra release zip
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -C - -o "$GHIDRA_ZIP" "$GHIDRA_URL"
+          echo "$GHIDRA_SHA256  $GHIDRA_ZIP" | sha256sum -c -
+          unzip -q "$GHIDRA_ZIP"
+          ls -d "ghidra_${GHIDRA_VERSION}_PUBLIC"
 
       # Same build as scripts/build-natives.sh, but inside an aarch64 Termux
       # container so the output links against bionic, like a real device.
@@ -65,7 +67,7 @@ jobs:
               P=/data/data/com.termux/files/usr
               export PATH=$P/bin:$P/bin/applets:$PATH
               pkg install -y make clang
-              cd /w/Ghidra/Features/Decompiler/src/decompile/cpp
+              cd /w/ghidra_12.1.4_PUBLIC/Ghidra/Features/Decompiler/src/decompile/cpp
               mkdir -p ghi_opt sla_opt
               make -j"$(nproc)" ghidra_opt sleigh_opt ARCH_TYPE= EXTRA= || true
               if [ ! -f ghidra_opt ] || [ ! -f sleigh_opt ]; then
@@ -78,9 +80,9 @@ jobs:
             ')
           docker start -a "$cid"
           mkdir -p out/Ghidra/Features/Decompiler/os/linux_arm_64
-          docker cp "$cid:/w/Ghidra/Features/Decompiler/src/decompile/cpp/ghidra_opt" \
+          docker cp "$cid:/w/ghidra_12.1.4_PUBLIC/Ghidra/Features/Decompiler/src/decompile/cpp/ghidra_opt" \
             out/Ghidra/Features/Decompiler/os/linux_arm_64/decompile
-          docker cp "$cid:/w/Ghidra/Features/Decompiler/src/decompile/cpp/sleigh_opt" \
+          docker cp "$cid:/w/ghidra_12.1.4_PUBLIC/Ghidra/Features/Decompiler/src/decompile/cpp/sleigh_opt" \
             out/Ghidra/Features/Decompiler/os/linux_arm_64/sleigh
           docker rm "$cid"
           chmod -R a+rwX out
