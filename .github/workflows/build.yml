@@ -40,13 +40,10 @@ jobs:
   build:
     runs-on: ubuntu-24.04-arm
     steps:
-      - name: Download official Ghidra release zip
-        run: |
-          set -euo pipefail
-          curl -fL --retry 3 -C - -o "$GHIDRA_ZIP" "$GHIDRA_URL"
-          echo "$GHIDRA_SHA256  $GHIDRA_ZIP" | sha256sum -c -
-          unzip -q "$GHIDRA_ZIP"
-          ls -d "ghidra_${GHIDRA_VERSION}_PUBLIC"
+      - name: Checkout this repo (vendored decompiler source)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
 
       # Same build as scripts/build-natives.sh, but inside an aarch64 Termux
       # container so the output links against bionic, like a real device.
@@ -67,7 +64,7 @@ jobs:
               P=/data/data/com.termux/files/usr
               export PATH=$P/bin:$P/bin/applets:$PATH
               pkg install -y make clang
-              cd /w/ghidra_12.1.4_PUBLIC/Ghidra/Features/Decompiler/src/decompile/cpp
+              cd /w/native/decompiler/cpp
               mkdir -p ghi_opt sla_opt
               make -j"$(nproc)" ghidra_opt sleigh_opt ARCH_TYPE= EXTRA= || true
               if [ ! -f ghidra_opt ] || [ ! -f sleigh_opt ]; then
@@ -80,9 +77,9 @@ jobs:
             ')
           docker start -a "$cid"
           mkdir -p out/Ghidra/Features/Decompiler/os/linux_arm_64
-          docker cp "$cid:/w/ghidra_12.1.4_PUBLIC/Ghidra/Features/Decompiler/src/decompile/cpp/ghidra_opt" \
+          docker cp "$cid:/w/native/decompiler/cpp/ghidra_opt" \
             out/Ghidra/Features/Decompiler/os/linux_arm_64/decompile
-          docker cp "$cid:/w/ghidra_12.1.4_PUBLIC/Ghidra/Features/Decompiler/src/decompile/cpp/sleigh_opt" \
+          docker cp "$cid:/w/native/decompiler/cpp/sleigh_opt" \
             out/Ghidra/Features/Decompiler/os/linux_arm_64/sleigh
           docker rm "$cid"
           chmod -R a+rwX out

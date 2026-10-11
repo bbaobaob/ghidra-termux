@@ -162,10 +162,12 @@ Nét chính về tốc độ:
 
 ## Native ARM64 được build thế nào?
 
-Ghidra chính thức **không** phát hành native `linux_arm_64` (xem [ghidra#3622](https://github.com/NationalSecurityAgency/ghidra/issues/3622), [ghidra#7958](https://github.com/NationalSecurityAgency/ghidra/issues/7958)). Repo này build chúng 2 đường:
+Ghidra chính thức **không** phát hành native `linux_arm_64` (xem [ghidra#3622](https://github.com/NationalSecurityAgency/ghidra/issues/3622), [ghidra#7958](https://github.com/NationalSecurityAgency/ghidra/issues/7958)). Repo này build chúng 2 đường, cùng dùng source C++ đã vendor sẵn trong [`native/decompiler/`](native/decompiler/) (copy nguyên văn từ zip Ghidra 12.1.4 chính thức, có SHA-256):
 
-1. **CI** (`.github/workflows/build-natives.yml`): `gradle buildNatives_linux_arm_64` trên runner `ubuntu-24.04-arm` (có fallback Makefile `ARCH_TYPE= EXTRA=`), publish lên tag `natives-v12.1.4`.
-2. **On-device** (`scripts/build-natives.sh`): `make ghidra_opt sleigh_opt ARCH_TYPE= EXTRA=` bằng clang Termux — 115 file C++, ~5–15 phút. (`EXTRA=` loại 3 file phụ thuộc binutils/BFD — cần `bfd.h` Termux không có — gradle build cũng không dùng chúng.)
+1. **CI** (`.github/workflows/build.yml`): build trong container `termux/termux-docker:aarch64` trên runner `ubuntu-24.04-arm` → publish lên tag `natives-v12.1.4`.
+2. **On-device** (`scripts/build-natives.sh`): `make ghidra_opt sleigh_opt ARCH_TYPE= EXTRA=` bằng clang Termux — 115 file C++, ~5–15 phút. (`ARCH_TYPE=` bỏ `-m32` sai của Makefile; `EXTRA=` loại 3 file phụ thuộc binutils/BFD — cần `bfd.h` Termux không có — gradle build cũng không dùng chúng.)
+
+Cả hai đều phải cho ra binary **bionic** — cross-build glibc (vd `gradle buildNatives_linux_arm_64` trên Ubuntu) sẽ không chạy được trên Android.
 
 Cả hai đều chỉ dùng source C++ ship sẵn trong zip Ghidra chính thức (parser generated `slghparse.cc`/`slghscan.cc` đã có sẵn, không cần flex/bison).
 

@@ -13,7 +13,10 @@ set -euo pipefail
 
 PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
 GHIDRA_HOME="${GHIDRA_TERMUX_HOME:-$PREFIX/opt/ghidra-termux}"
-CPP="$GHIDRA_HOME/Ghidra/Features/Decompiler/src/decompile/cpp"
+# Optional first argument: directory containing the decompiler cpp sources.
+# Defaults to the sources inside a Ghidra install tree; pass
+# native/decompiler/cpp (vendored in this repo) to build without an install.
+CPP="${1:-$GHIDRA_HOME/Ghidra/Features/Decompiler/src/decompile/cpp}"
 DEST="$GHIDRA_HOME/Ghidra/Features/Decompiler/os/linux_arm_64"
 
 [ -d "$CPP" ] || { echo "build-natives: '$CPP' not found (is Ghidra installed?)" >&2; exit 1; }
@@ -59,10 +62,15 @@ fi
 
 [ -f ghidra_opt ] && [ -f sleigh_opt ] || { echo "build-natives: build failed" >&2; exit 1; }
 
-mkdir -p "$DEST"
-install -m 755 ghidra_opt "$DEST/decompile"
-install -m 755 sleigh_opt  "$DEST/sleigh"
-
-echo "build-natives: installed:"
-echo "  $DEST/decompile"
-echo "  $DEST/sleigh"
+if [ -d "$GHIDRA_HOME/support" ]; then
+  mkdir -p "$DEST"
+  install -m 755 ghidra_opt "$DEST/decompile"
+  install -m 755 sleigh_opt  "$DEST/sleigh"
+  echo "build-natives: installed:"
+  echo "  $DEST/decompile"
+  echo "  $DEST/sleigh"
+else
+  echo "build-natives: no Ghidra install at $GHIDRA_HOME; binaries left in $CPP:"
+  echo "  $CPP/ghidra_opt  -> copy as <ghidra>/Ghidra/Features/Decompiler/os/linux_arm_64/decompile"
+  echo "  $CPP/sleigh_opt  -> copy as <ghidra>/Ghidra/Features/Decompiler/os/linux_arm_64/sleigh"
+fi
