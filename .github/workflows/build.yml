@@ -45,6 +45,17 @@ jobs:
         with:
           repository: ${{ github.repository }}
 
+      # git checkout does not preserve mtimes, so generated parser sources
+      # (grammar.cc, xml.cc, ...) can look older than their .y/.l files and
+      # make would try to regenerate them with bison/flex. Touch the generated
+      # .cc files so the shipped sources are used as-is (bison/flex are still
+      # installed below as a safety net).
+      - name: Normalize source timestamps
+        run: |
+          set -euo pipefail
+          find native/decompiler/cpp -name '*.cc' -exec touch {} +
+          ls -la native/decompiler/cpp/grammar.cc native/decompiler/cpp/grammar.y
+
       # Same build as scripts/build-natives.sh, but inside an aarch64 Termux
       # container so the output links against bionic, like a real device.
       # The container's default user is not root and cannot write into the
@@ -63,7 +74,7 @@ jobs:
               set -e
               P=/data/data/com.termux/files/usr
               export PATH=$P/bin:$P/bin/applets:$PATH
-              pkg install -y make clang
+              pkg install -y make clang bison flex
               cd /w/native/decompiler/cpp
               mkdir -p ghi_opt sla_opt
               make -j"$(nproc)" ghidra_opt sleigh_opt ARCH_TYPE= EXTRA= || true
